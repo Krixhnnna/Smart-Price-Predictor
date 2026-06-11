@@ -1,4 +1,4 @@
-# Prices Predictor System
+# Smart-Price-Predictor
 
 [![Python 3.9+](https://img.shields.io/badge/Python-3.9%2B-blue?logo=python)](https://python.org)
 [![ZenML](https://img.shields.io/badge/ZenML-0.64.0-blueviolet?logo=zenml)](https://zenml.io)
@@ -261,4 +261,4 @@ make clean
 ## License
 
 MIT © 2026 — See [LICENSE](LICENSE) for details.
-# Smart-Price-Predictor
+
