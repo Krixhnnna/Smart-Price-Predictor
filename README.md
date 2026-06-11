@@ -261,3 +261,4 @@ make clean
 ## License
 
 MIT © 2026 — See [LICENSE](LICENSE) for details.
+# Smart-Price-Predictor
