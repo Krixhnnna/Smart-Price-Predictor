@@ -191,10 +191,8 @@ def render_prediction():
     has_local_model = os.path.exists(local_model_path)
 
     with st.sidebar:
-        st.header("Prediction settings")
-        if has_local_model:
-            st.info("💡 Standalone mode: Running model in-memory from model.joblib.")
-        else:
+        if not has_local_model:
+            st.header("Prediction settings")
             prediction_url = st.text_input("Prediction URL", PREDICTION_URL_DEFAULT)
             st.caption("Default matches the MLflow model server from the deployment pipeline.")
 
