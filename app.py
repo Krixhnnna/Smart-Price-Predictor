@@ -21,6 +21,8 @@ import json
 import os
 from typing import Dict, List, Tuple
 
+import joblib
+import numpy as np
 import pandas as pd
 import requests
 import streamlit as st
@@ -184,10 +186,17 @@ def render_prediction():
         "Enter property details and get a price prediction using the deployed model service."
     )
 
+    # Check if we have a local model serialized
+    local_model_path = "model.joblib"
+    has_local_model = os.path.exists(local_model_path)
+
     with st.sidebar:
         st.header("Prediction settings")
-        prediction_url = st.text_input("Prediction URL", PREDICTION_URL_DEFAULT)
-        st.caption("Default matches the MLflow model server from the deployment pipeline.")
+        if has_local_model:
+            st.info("💡 Standalone mode: Running model in-memory from model.joblib.")
+        else:
+            prediction_url = st.text_input("Prediction URL", PREDICTION_URL_DEFAULT)
+            st.caption("Default matches the MLflow model server from the deployment pipeline.")
 
     with st.form("prediction_form"):
         record = build_input_form()
@@ -197,29 +206,71 @@ def render_prediction():
         return
 
     st.subheader("Prediction result")
-    try:
-        response_json = call_prediction_service(prediction_url, record)
-    except requests.RequestException as exc:
-        st.error("Prediction service is not reachable.")
-        st.info(
-            "Start the deployment pipeline first, then retry. "
-            "Run `python run_deployment.py` to deploy the model."
-        )
-        st.code(str(exc))
-        return
+    
+    if has_local_model:
+        try:
+            # 1. Load standalone model
+            pipeline = joblib.load(local_model_path)
+            
+            # 2. Build DataFrame in expected format/order
+            df = pd.DataFrame([record])
+            expected_columns = [f[0] for f in FEATURES]
+            df = df[expected_columns]
+            
+            # 3. Log transform Gr Liv Area to match training
+            if "Gr Liv Area" in df.columns:
+                df["Gr Liv Area"] = np.log1p(df["Gr Liv Area"])
+            
+            # 4. Predict and invert log transform
+            pred_log = pipeline.predict(df)[0]
+            pred_price = np.expm1(pred_log)
+            
+            st.success("Prediction completed (using standalone model).")
+            st.metric("Predicted SalePrice", f"${pred_price:,.2f}")
+            with st.expander("Show Technical Details"):
+                st.write({
+                    "model_source": "Local model.joblib",
+                    "log1p_predicted_val": float(pred_log),
+                    "exponentiated_val": float(pred_price)
+                })
+        except Exception as exc:
+            st.error("Failed to run prediction using local model.")
+            st.code(str(exc))
+    else:
+        # Fallback: Call prediction service via REST API
+        api_record = record.copy()
+        if "Gr Liv Area" in api_record:
+            api_record["Gr Liv Area"] = np.log1p(api_record["Gr Liv Area"])
+            
+        try:
+            response_json = call_prediction_service(prediction_url, api_record)
+        except requests.RequestException as exc:
+            st.error("Prediction service is not reachable.")
+            st.info(
+                "Start the deployment pipeline first, then retry. "
+                "Run `python run_deployment.py` to deploy the model."
+            )
+            st.code(str(exc))
+            return
 
-    prediction = None
-    if isinstance(response_json, dict):
-        prediction = response_json.get("predictions")
-    if prediction is None:
-        prediction = response_json
+        prediction = None
+        if isinstance(response_json, dict):
+            prediction = response_json.get("predictions")
+        if prediction is None:
+            prediction = response_json
 
-    st.success("Prediction completed.")
-    st.write("Raw response:")
-    st.json(response_json)
+        st.success("Prediction completed (using MLflow server).")
+        st.write("Raw response:")
+        st.json(response_json)
 
-    if isinstance(prediction, list) and prediction:
-        st.metric("Predicted SalePrice", f"${prediction[0]:,.2f}")
+        if isinstance(prediction, list) and prediction:
+            pred_val = prediction[0]
+            # If the response is in log-scale (typical < 20 for housing prices), convert back
+            if pred_val < 20:
+                pred_price = np.expm1(pred_val)
+            else:
+                pred_price = pred_val
+            st.metric("Predicted SalePrice", f"${pred_price:,.2f}")
 
 
 def render_project_overview():
