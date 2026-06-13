@@ -1,7 +1,7 @@
-# Standalone Streamlit App Dependencies (Lightweight)
-numpy>=1.26.0
-pandas>=2.1.0
-scikit-learn>=1.3.2
-joblib>=1.3.2
+# Standalone Streamlit App Dependencies (Exact Pinned Versions)
+numpy==2.0.2
+pandas==2.3.3
+scikit-learn==1.6.1
+joblib==1.5.3
 requests>=2.31.0
 streamlit>=1.35.0
